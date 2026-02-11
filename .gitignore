@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+*.log.*
+
+# Temporary files
+tmp/
+*.tmp
+
+# Runtime files
+nist_seeds_FOUND.txt
+nist_cracker_state.log
+
+# Backups
+*.backup
+bak/
+bak_2/
+OLD_*
+
+# Service files (keep the main one, ignore variants)
+nist-cracker_rev.service
+nist_seeds_cracker_rewrite_trunc.py

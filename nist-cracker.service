@@ -1,0 +1,28 @@
+[Unit]
+Description=NIST Elliptic Curve Seeds Cracker
+After=network.target
+
+[Service]
+Type=simple
+User=cc
+WorkingDirectory=/home/seed_search2
+ExecStart=/home/seed_search2/venv/bin/python3 /home/seed_search2/nist_seeds_cracker.py
+
+# Run at lowest CPU priority (nice 19 = lowest priority)
+Nice=19
+
+# Run at lowest I/O priority (idle class)
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+
+# Restart on failure
+Restart=on-failure
+RestartSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nist-cracker
+
+[Install]
+WantedBy=multi-user.target
