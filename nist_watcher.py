@@ -17,7 +17,7 @@ This script:
 
 import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 # Import shared utilities
 from nist_utils import (
@@ -43,7 +43,7 @@ def get_recent_activity(hours=50):
     """
     state = parse_state_log()
     
-    now = datetime.now(timezone.utc)
+    now = datetime.now().astimezone()
     cutoff = now - timedelta(hours=hours)
     
     # Filter lines from last N hours
@@ -107,7 +107,7 @@ def format_status_email():
     """Generate the status report email body."""
     
     activity = get_recent_activity(hours=50)
-    now = datetime.now(timezone.utc)
+    now = datetime.now().astimezone()
     
     # Check if cracker is running
     cracker_status = "Running" if activity["last_activity"] and \
@@ -191,7 +191,7 @@ PROGRESS:
     
     # Footer
     body += f"\n{'=' * 50}\n"
-    body += f"Report generated: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+    body += f"Report generated: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
     body += f"Next report scheduled in 24 hours\n"
     body += f"\nLogs: {STATE_LOG}\n"
     body += f"Found file: {FOUND_FILE}\n"

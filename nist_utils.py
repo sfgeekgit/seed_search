@@ -69,7 +69,7 @@ FOUND FILE:
 
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 
 # Add venv to path for SendGrid
 sys.path.insert(0, '/home/seed_search2/venv/lib/python3.11/site-packages')
@@ -201,7 +201,7 @@ def parse_state_log():
     if not os.path.isfile(STATE_LOG):
         return state
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now().astimezone()
 
     try:
         with open(STATE_LOG, 'r') as f:

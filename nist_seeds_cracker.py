@@ -33,19 +33,19 @@ BACKGROUND:
 ARCHITECTURE:
     This script runs as a systemd daemon on a Debian server. It generates
     candidate phrases in Python, writes them to temp wordlist files, and
-    feeds them to John the Ripper (Jumbo edition) which applies its own
-    mangling rules on top and does the actual SHA-1 checking at ~10M H/s.
+    feeds them to John the Ripper (Jumbo edition) which applies mangling
+    rules and does the actual SHA-1 checking at ~10M H/s.
 
-    Two layers of mangling:
-      1. Python (smart, clue-driven): name variations, case, punctuation,
-         counters, and in later phases, character insertion
-      2. John the Ripper --rules=Jumbo (mechanical, broad): thousands of
-         additional transformations like l33tspeak, appending numbers,
-         character swaps, etc.
+    Division of labor:
+      1. Python (smart, clue-driven): name variations, counter formats,
+         and in later phases, character insertion
+      2. John the Ripper --rules=Jumbo (mechanical, broad): case variations,
+         punctuation, digit appends, l33tspeak, character swaps, and
+         thousands of other transformations
 
-    We ALWAYS use John's Jumbo rules because the whole point is to cast
-    the widest possible net. Even if our Python-generated phrase is close
-    but not exact, John's mangling might bridge the gap.
+    We use John's Jumbo rules to handle case/punctuation variations and
+    to cast a wider net with unexpected transformations. This eliminates
+    redundancy while still covering edge cases we might not think of.
 
 THREE PHASES:
     Phase 1: "The obvious check" (~1-6 hours)
@@ -107,7 +107,7 @@ import string
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 # Import shared utilities and constants
 from nist_utils import (
@@ -133,7 +133,7 @@ PHASE3_LOG_INTERVAL = 14400
 # How many candidates to generate per batch in Phase 3 before feeding
 # to John. Too small = overhead from launching John repeatedly. Too large =
 # huge temp files. 5M candidates ~ 150MB wordlist file, which is manageable.
-PHASE3_BATCH_SIZE = 5_000_000
+PHASE3_BATCH_SIZE = 20_000
 
 
 # =============================================================================
@@ -201,20 +201,16 @@ NAME_PAIRS = [
 # Another source: The phrase had TWO names, like "Give Alice and Bob a raise."
 #
 # We cast a wide net: raises, pay, humor, workplace, promotion, authorship.
-# Templates should NOT include trailing punctuation variants (like ".", "!")
-# because punctuation_variants() handles all punctuation systematically.
-# This avoids generating duplicate candidates.
+# Templates should NOT include case-only duplicates because Jumbo rules
+# handle case variation well.
 # =============================================================================
 
 TWO_NAME_TEMPLATES = [
     # === "Give X and Y a raise" family (Jerry's primary example) ===
-    # NOTE: punctuation_variants() will add ".", "!", and newline variants
+    # NOTE: Jumbo rules will add most case/punctuation variants
     "Give {name1} and {name2} a raise",
-    "give {name1} and {name2} a raise",
     "Give {name1} and {name2} raises",
-    "give {name1} and {name2} raises",
     "Give {name1} & {name2} a raise",
-    "give {name1} & {name2} a raise",
 
     # === "deserve/need a raise" family ===
     "{name1} and {name2} deserve a raise",
@@ -232,7 +228,6 @@ TWO_NAME_TEMPLATES = [
 
     # === Pay/money ===
     "Pay {name1} and {name2} more",
-    "pay {name1} and {name2} more",
     "{name1} and {name2} need more money",
     "{name1} and {name2} need better pay",
     "{name1} and {name2} are underpaid",
@@ -250,26 +245,21 @@ TWO_NAME_TEMPLATES = [
     "{name1} and {name2}'s gift to cryptography",
     "{name1} and {name2}'s contribution",
     "A gift from {name1} and {name2}",
-    "a gift from {name1} and {name2}",
     "From {name1} and {name2}",
-    "from {name1} and {name2}",
     "Made by {name1} and {name2}",
-    "made by {name1} and {name2}",
 
     # === Promotion ===
     "Promote {name1} and {name2}",
-    "promote {name1} and {name2}",
     "{name1} and {name2} for promotion",
     "{name1} and {name2} deserve a promotion",
 ]
 
 SINGLE_NAME_TEMPLATES = [
     # === "deserves a raise" (the most-cited example phrase) ===
-    # NOTE: punctuation_variants() will add ".", "!", and newline variants
+    # NOTE: Jumbo rules will add most case/punctuation variants
     "{name} deserves a raise",
     "{name} needs a raise",
     "Give {name} a raise",
-    "give {name} a raise",
 
     # === Rule/rock ===
     "{name} rules",
@@ -280,29 +270,29 @@ SINGLE_NAME_TEMPLATES = [
     "{name} made this", "{name} did this", "{name} built this",
 
     # === Pay ===
-    "Pay {name} more", "pay {name} more",
+    "Pay {name} more",
     "{name} is underpaid",
     "{name} needs more money", "{name} needs better pay",
     "{name} should get a raise",
 
     # === Promotion (NSA uses GS pay grades) ===
-    "Promote {name}", "promote {name}",
+    "Promote {name}",
     "{name} for promotion",
     "{name} for GS-15", "{name} for GS-14", "{name} for GS-13",
     "{name} deserves a promotion",
 
     # === Credit ===
-    "A gift from {name}", "a gift from {name}",
+    "A gift from {name}",
     "{name}'s gift to cryptography", "{name}'s contribution",
     "{name}'s curve", "{name}'s excellent curve",
-    "From {name}", "from {name}",
-    "Made by {name}", "made by {name}",
-    "Generated by {name}", "generated by {name}",
+    "From {name}",
+    "Made by {name}",
+    "Generated by {name}",
 
     # === Misc humor ===
     "{name} is the best", "{name} is the man",
-    "Thank {name}", "thank {name}",
-    "Thanks {name}", "thanks {name}",
+    "Thank {name}",
+    "Thanks {name}",
     "{name} saves the day", "{name} to the rescue",
 ]
 
@@ -310,11 +300,10 @@ SINGLE_NAME_TEMPLATES = [
 # all the seeds", "we can remember neither"). The phrase might use "we"
 # instead of names.
 WE_TEMPLATES = [
-    # NOTE: punctuation_variants() will add ".", "!", and newline variants
+    # NOTE: Jumbo rules will add most case/punctuation variants
     "We deserve a raise", "We deserve raises",
     "We need a raise", "We need raises",
-    "we deserve a raise", "we need a raise",
-    "Give us a raise", "give us a raise",
+    "Give us a raise",
     "We rule",
     "We were here", "We built this", "We made this",
     "Our gift to cryptography",
@@ -380,53 +369,8 @@ def generate_counter_batches(batch_size=BATCH_SIZE):
     return batches
 
 
-def punctuation_variants(phrase):
-    """
-    Generate trailing punctuation and whitespace variants.
-    
-    We don't know if Jerry ended his phrase with a period, exclamation mark,
-    nothing, or a newline (which would be common if he typed it into a
-    terminal and hit Enter, since the newline might be included in the hash
-    input depending on how his code read the input).
-    """
-    variants = set()
-    variants.add(phrase)
-
-    # Strip existing trailing punctuation to create a clean base
-    stripped = phrase.rstrip('.!? ')
-    variants.add(stripped)
-
-    # Add trailing punctuation options
-    variants.add(stripped + ".")
-    variants.add(stripped + "!")
-
-    # Newline variants — very plausible if Jerry piped input from a file
-    # or if his code included the trailing newline from stdin
-    variants.add(phrase + "\n")
-    variants.add(phrase + "\r\n")
-    variants.add(stripped + "\n")
-    variants.add(stripped + "\r\n")
-
-    return list(variants)
-
-
-def case_variants(phrase):
-    """
-    Generate case variants of a phrase.
-    
-    We don't know if Jerry typed "Give Bob and Jerry a raise" or
-    "give bob and jerry a raise" or "GIVE BOB AND JERRY A RAISE".
-    Names were probably capitalized, but we can't be sure.
-    """
-    variants = set()
-    variants.add(phrase)                    # Original as-is
-    variants.add(phrase.lower())            # all lowercase
-    variants.add(phrase.upper())            # ALL UPPERCASE
-    variants.add(phrase.title())            # Title Case Every Word
-    # First letter cap only (like a sentence)
-    if len(phrase) > 1:
-        variants.add(phrase[0].upper() + phrase[1:].lower())
-    return list(variants)
+# REMOVED: punctuation_variants() and case_variants()
+# Let Jumbo rules handle case and punctuation variations to eliminate redundancy
 
 
 # =============================================================================
@@ -462,8 +406,10 @@ def generate_base_phrases():
 
 def expand_phrase_with_counters(phrase, min_counter=0, max_counter=MAX_COUNTER):
     """
-    Take a single base phrase and yield all expanded variants:
-    case x punctuation x (no counter + counters min_counter..max_counter in all formats).
+    Take a single base phrase and yield all expanded variants with counters.
+
+    Jumbo handles most case and punctuation transformations. We only emit
+    the base phrase and counter-format variants here.
 
     This is used in both Phase 1 (all phrases at once) and Phase 2
     (per phrase, before inserting characters).
@@ -471,15 +417,14 @@ def expand_phrase_with_counters(phrase, min_counter=0, max_counter=MAX_COUNTER):
     The min_counter and max_counter params allow batching the counter range
     to reduce temp file sizes (e.g., 0-500, 501-1000, etc.).
     """
-    for cased in case_variants(phrase):
-        for punc in punctuation_variants(cased):
-            # Only yield the no-counter variant if min_counter is 0
-            if min_counter == 0:
-                yield punc
-            # Yield counters in the specified range
-            for n in range(min_counter, max_counter + 1):
-                for fmt in counter_formats(n):
-                    yield punc + fmt
+    # Only yield the no-counter variant if min_counter is 0
+    if min_counter == 0:
+        yield phrase
+
+    # Yield counters in the specified range.
+    for n in range(min_counter, max_counter + 1):
+        for fmt in counter_formats(n):
+            yield phrase + fmt
 
 
 # =============================================================================
@@ -541,8 +486,17 @@ def run_john_on_wordlist(wordlist_path):
         # Log John's output for debugging
         if result.stdout.strip():
             print(f"  John stdout: {result.stdout.strip()[:200]}", flush=True)
-        if result.returncode != 0 and result.stderr.strip():
-            print(f"  John stderr: {result.stderr.strip()[:200]}", flush=True)
+
+        # Non-zero exit means the batch did not run cleanly.
+        # Treat this as an operational error, not a normal "no match" result.
+        if result.returncode != 0:
+            stderr_preview = result.stderr.strip()[:400] if result.stderr else ""
+            stdout_preview = result.stdout.strip()[:200] if result.stdout else ""
+            log_message(
+                f"ERROR: John exited with code {result.returncode}. "
+                f"stderr={repr(stderr_preview)} stdout={repr(stdout_preview)}"
+            )
+            return False
 
         # Check for new cracks
         pot_after = get_john_pot_contents()
@@ -596,7 +550,7 @@ def handle_found_cracks(new_cracks):
     Writes to FOUND_FILE, logs the finding, sends email alert, and prints
     a giant banner so it's impossible to miss in journalctl output.
     """
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now().astimezone().isoformat()
 
     for crack in new_cracks:
         msg = (
@@ -647,7 +601,7 @@ def log_message(msg):
     The state log file is our persistent checkpoint — it survives reboots
     and is how we know what work to skip on restart.
     """
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now().astimezone().isoformat()
     line = f"{timestamp}: {msg}"
     print(line, flush=True)
 
@@ -991,23 +945,21 @@ def run_phase2():
 def generate_phase3_batch(base_phrases, batch_size):
     """
     Generate a batch of randomly-noised candidates for Phase 3.
-    
+
     For each candidate in the batch:
     1. Pick a random base phrase
-    2. Apply a random case variant
-    3. Apply a random punctuation variant
-    4. Insert 2-4 random printable ASCII characters at random positions
-    
+    2. Insert 2-4 random printable ASCII characters at random positions
+
     We skip counters here because John's Jumbo rules already append
     numbers aggressively. Adding our counters on top of 2-4 random
     insertions would make batches enormous without much benefit —
     John will handle that layer of variation.
+
+    Case and most punctuation variations are handled by Jumbo rules.
     """
     candidates = []
     for _ in range(batch_size):
         phrase = random.choice(base_phrases)
-        phrase = random.choice(case_variants(phrase))
-        phrase = random.choice(punctuation_variants(phrase))
 
         # Insert 2-4 random characters at random positions.
         # We use 2-4 because:
@@ -1113,13 +1065,14 @@ def main():
 
     # Read existing state to determine where to resume
     state = read_state()
+    total_counter_batches = len(generate_counter_batches())
 
     log_message("Daemon starting. Reading state...")
     if state["phase1_complete"]:
         log_message(f"Phase 1: already complete")
     else:
         log_message(f"Phase 1: {len(state['phase1_done_batches'])} counter batches "
-                    f"already done (out of 5)")
+                    f"already done (out of {total_counter_batches})")
     log_message(f"Phase 2: {len(state['phase2_done_indices'])} base phrases "
                 f"already done")
 
