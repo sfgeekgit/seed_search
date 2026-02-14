@@ -121,9 +121,13 @@ from nist_utils import (
 # for P-256. We use 2500 to have some margin.
 MAX_COUNTER = 2500
 
-# Counter batch size for Phase 1 and Phase 2. Smaller batches = more frequent
-# checkpoints and smaller temp files, but more overhead from launching John.
-BATCH_SIZE = 10
+# Counter batch size for Phase 1. Smaller batches = more frequent checkpoints
+# and smaller temp files, but more overhead from launching John.
+PHASE_1_BATCH_SIZE = 10
+
+# Counter batch size for Phase 2. Larger batches reduce John launch overhead,
+# which matters more in Phase 2 since each batch takes hours anyway.
+PHASE_2_BATCH_SIZE = 500
 
 # How often to log a status line in Phase 3 (seconds).
 # Every 4 hours = 14400 seconds. This is just so you can check the log
@@ -353,7 +357,7 @@ def counter_formats(n):
     return formats
 
 
-def generate_counter_batches(batch_size=BATCH_SIZE):
+def generate_counter_batches(batch_size):
     """
     Generate counter batch ranges from 0 to MAX_COUNTER.
 
@@ -706,8 +710,8 @@ def run_phase1():
     base_phrases = generate_base_phrases()
     log_message(f"Phase 1: {len(base_phrases)} base phrases to expand")
 
-    # Generate counter batches based on BATCH_SIZE parameter
-    counter_batches = generate_counter_batches()
+    # Generate counter batches based on PHASE_1_BATCH_SIZE parameter
+    counter_batches = generate_counter_batches(PHASE_1_BATCH_SIZE)
 
     # Check which batches are already done
     state = read_state()
@@ -831,8 +835,8 @@ def run_phase2():
     done_indices = state["phase2_done_indices"]
     done_batches = state["phase2_done_batches"]
 
-    # Generate counter batches based on BATCH_SIZE parameter
-    counter_batches = generate_counter_batches()
+    # Generate counter batches based on PHASE_2_BATCH_SIZE parameter
+    counter_batches = generate_counter_batches(PHASE_2_BATCH_SIZE)
 
     remaining = len(base_phrases) - len(done_indices)
     log_message(f"Phase 2: {len(base_phrases)} total base phrases, "
@@ -1065,7 +1069,7 @@ def main():
 
     # Read existing state to determine where to resume
     state = read_state()
-    total_counter_batches = len(generate_counter_batches())
+    total_counter_batches = len(generate_counter_batches(PHASE_1_BATCH_SIZE))
 
     log_message("Daemon starting. Reading state...")
     if state["phase1_complete"]:
