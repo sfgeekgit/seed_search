@@ -174,22 +174,20 @@ def parse_state_log():
     
     Returns a dict with:
         phase1_complete: bool
-        phase2_done_indices: set of ints
+        phase2_done_phrases: set of phrase texts fully complete
         phase2_complete: bool
         phase3_running: bool (True if we've seen any Phase 3 status lines)
         phase3_last_status: str or None (most recent Phase 3 status line)
         found: list of str (any FOUND lines — hopefully not empty someday!)
         all_lines: list of (timestamp_str, message) tuples
         recent_lines: list of (timestamp_str, message) tuples from last 24h
-    
+
     Used by:
-    - The cracker: reads phase1_complete and phase2_done_indices to know
-      what to skip on restart
     - The watcher: reads everything to build status reports
     """
     state = {
         "phase1_complete": False,
-        "phase2_done_indices": set(),
+        "phase2_done_phrases": set(),
         "phase2_complete": False,
         "phase3_running": False,
         "phase3_last_status": None,
@@ -237,8 +235,14 @@ def parse_state_log():
                 elif "PHASE2_BASE_DONE:" in message:
                     try:
                         marker = message.split("PHASE2_BASE_DONE:")[1]
-                        idx = int(marker.split(":")[0])
-                        state["phase2_done_indices"].add(idx)
+                        parts = marker.split(":", 1)
+                        if len(parts) == 2 and parts[0].isdigit():
+                            # Old format: "idx:phrase text"
+                            phrase = parts[1]
+                        else:
+                            # New format: "phrase text"
+                            phrase = marker
+                        state["phase2_done_phrases"].add(phrase)
                     except (ValueError, IndexError):
                         pass
                 elif "PHASE2_COMPLETE" in message:

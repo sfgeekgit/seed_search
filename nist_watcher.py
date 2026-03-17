@@ -73,19 +73,19 @@ def get_recent_activity(hours=50):
         current_phase = "Phase 3 (Deep Noise)"
     elif state["phase2_complete"]:
         current_phase = "Phase 3 (Deep Noise)"
-    elif len(state["phase2_done_indices"]) > 0:
+    elif len(state["phase2_done_phrases"]) > 0:
         current_phase = "Phase 2 (Single Char Insertion)"
     elif state["phase1_complete"]:
         current_phase = "Phase 2 (Single Char Insertion)"
     else:
         current_phase = "Phase 1 (Base Phrases)"
-    
+
     # Phase 2 progress
     phase2_progress = "Not started"
-    if len(state["phase2_done_indices"]) > 0:
+    if len(state["phase2_done_phrases"]) > 0:
         # We don't know total without generating phrases, so estimate ~1350
         total_estimate = 1350
-        done = len(state["phase2_done_indices"])
+        done = len(state["phase2_done_phrases"])
         percent = (done / total_estimate) * 100
         phase2_progress = f"{done}/{total_estimate} base phrases (~{percent:.1f}%)"
     

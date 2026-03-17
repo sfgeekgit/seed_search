@@ -10,6 +10,8 @@ PURPOSE:
     There is a $12,288 bounty (tripled if donated to charity) offered by
     Filippo Valsorda for cracking these hashes.
 
+    https://words.filippo.io/seeds-bounty/
+
 BACKGROUND:
     Jerry Solinas at the NSA generated these seeds in ~1997 by hashing
     "humorous" English phrases with SHA-1. He forgot the exact phrases
@@ -115,6 +117,12 @@ from nist_utils import (
     send_email
 )
 
+# Import phrase templates and name lists (edit nist_phrases.py to add/remove phrases)
+from nist_phrases import (
+    SINGLE_NAMES, NAME_PAIRS,
+    TWO_NAME_TEMPLATES, SINGLE_NAME_TEMPLATES, WE_TEMPLATES,
+)
+
 # Maximum counter value to append to phrases. The counter is needed because
 # only ~1 in 192-521 hashes produces a valid curve. Filippo's analysis says
 # 99% chance the counter is < 2400 for the largest curve (P-521) and < 1175
@@ -139,180 +147,6 @@ PHASE3_LOG_INTERVAL = 14400
 # huge temp files. 5M candidates ~ 150MB wordlist file, which is manageable.
 PHASE3_BATCH_SIZE = 20_000
 
-
-# =============================================================================
-# NAME COMPONENTS
-#
-# These are the people most likely to appear in the seed phrases, based on
-# all available clues from Steve Weis's research:
-#
-# - Jerry Solinas: The NSA mathematician who chose the seeds. Everyone agrees
-#   his name is almost certainly in the phrase.
-# - Bob Reiter: Jerry's email to Dan Bernstein explicitly says "It was Bob
-#   Reiter who actually wrote the code." Jerry's example phrases were
-#   "Give Bob and Jerry a raise" and "Bob and Jerry rule."
-# - Laurie Law: Jerry's longtime co-author at NSA (papers from 1996-2011).
-#   A fourth source told Steve Weis the phrase had "two names" in it.
-#   Laurie is the other most likely candidate besides Bob.
-#
-# We try multiple forms of each name because we don't know if Jerry used
-# first names only, full names, last names only, or abbreviations.
-# =============================================================================
-
-SINGLE_NAMES = [
-    "Jerry", "Bob", "Laurie",
-    "Jerry Solinas", "Bob Reiter", "Laurie Law",
-    "Solinas", "Reiter", "Law",
-    "Jerome", "Robert",
-    "Jerome Solinas", "Robert Reiter",
-    "J. Solinas", "B. Reiter", "L. Law",
-    "Jerome A. Solinas",
-]
-
-# Pairs of names. The phrase likely contains TWO names based on:
-# 1. Jerry's own email: "Give Bob and Jerry a raise"
-# 2. A source telling Steve Weis the phrase had "two names like Alice and Bob"
-# We try all orderings because we don't know who came first.
-NAME_PAIRS = [
-    # Most likely: Jerry + Bob (since Bob wrote the code)
-    ("Jerry", "Bob"), ("Bob", "Jerry"),
-    ("Jerry Solinas", "Bob Reiter"), ("Bob Reiter", "Jerry Solinas"),
-    ("Solinas", "Reiter"), ("Reiter", "Solinas"),
-    # Jerry + Laurie (the other likely second person)
-    ("Jerry", "Laurie"), ("Laurie", "Jerry"),
-    ("Jerry Solinas", "Laurie Law"), ("Laurie Law", "Jerry Solinas"),
-    ("Solinas", "Law"), ("Law", "Solinas"),
-    # Bob + Laurie (less likely but possible)
-    ("Bob", "Laurie"), ("Laurie", "Bob"),
-    ("Bob Reiter", "Laurie Law"),
-    # Formal first names
-    ("Jerome", "Bob"), ("Jerome", "Robert"),
-    ("Bob", "Jerome"), ("Robert", "Jerry"), ("Jerry", "Robert"),
-    ("Jerome Solinas", "Bob Reiter"), ("Jerome Solinas", "Robert Reiter"),
-]
-
-
-# =============================================================================
-# PHRASE TEMPLATES
-#
-# Structured around the specific clues we have:
-#
-# Jerry's email to Bernstein: "The message was along the lines of 'Give Bob
-# and Jerry a raise' or 'Bob and Jerry rule' or something like that."
-#
-# An anonymous source (~2013): Jerry said SEED = SHA1("Jerry deserves a raise.")
-#
-# Another source: The phrase had TWO names, like "Give Alice and Bob a raise."
-#
-# We cast a wide net: raises, pay, humor, workplace, promotion, authorship.
-# Templates should NOT include case-only duplicates because Jumbo rules
-# handle case variation well.
-# =============================================================================
-
-TWO_NAME_TEMPLATES = [
-    # === "Give X and Y a raise" family (Jerry's primary example) ===
-    # NOTE: Jumbo rules will add most case/punctuation variants
-    "Give {name1} and {name2} a raise",
-    "Give {name1} and {name2} raises",
-    "Give {name1} & {name2} a raise",
-
-    # === "deserve/need a raise" family ===
-    "{name1} and {name2} deserve a raise",
-    "{name1} and {name2} deserve raises",
-    "{name1} and {name2} need a raise",
-    "{name1} and {name2} need raises",
-    "{name1} and {name2} should get a raise",
-    "{name1} & {name2} deserve a raise",
-    "{name1} & {name2} need a raise",
-
-    # === "rule" family (Jerry's other example) ===
-    "{name1} and {name2} rule",
-    "{name1} & {name2} rule",
-    "{name1} and {name2} rock",
-
-    # === Pay/money ===
-    "Pay {name1} and {name2} more",
-    "{name1} and {name2} need more money",
-    "{name1} and {name2} need better pay",
-    "{name1} and {name2} are underpaid",
-
-    # === Workplace humor ===
-    "{name1} and {name2} were here",
-    "{name1} and {name2} wuz here",
-    "{name1} and {name2} made this",
-    "{name1} and {name2} did this",
-    "{name1} and {name2} built this",
-
-    # === Credit/authorship ===
-    "{name1} and {name2}'s excellent curve",
-    "{name1} and {name2}'s excellent adventure",
-    "{name1} and {name2}'s gift to cryptography",
-    "{name1} and {name2}'s contribution",
-    "A gift from {name1} and {name2}",
-    "From {name1} and {name2}",
-    "Made by {name1} and {name2}",
-
-    # === Promotion ===
-    "Promote {name1} and {name2}",
-    "{name1} and {name2} for promotion",
-    "{name1} and {name2} deserve a promotion",
-]
-
-SINGLE_NAME_TEMPLATES = [
-    # === "deserves a raise" (the most-cited example phrase) ===
-    # NOTE: Jumbo rules will add most case/punctuation variants
-    "{name} deserves a raise",
-    "{name} needs a raise",
-    "Give {name} a raise",
-
-    # === Rule/rock ===
-    "{name} rules",
-    "{name} rocks",
-
-    # === Workplace ===
-    "{name} was here", "{name} wuz here",
-    "{name} made this", "{name} did this", "{name} built this",
-
-    # === Pay ===
-    "Pay {name} more",
-    "{name} is underpaid",
-    "{name} needs more money", "{name} needs better pay",
-    "{name} should get a raise",
-
-    # === Promotion (NSA uses GS pay grades) ===
-    "Promote {name}",
-    "{name} for promotion",
-    "{name} for GS-15", "{name} for GS-14", "{name} for GS-13",
-    "{name} deserves a promotion",
-
-    # === Credit ===
-    "A gift from {name}",
-    "{name}'s gift to cryptography", "{name}'s contribution",
-    "{name}'s curve", "{name}'s excellent curve",
-    "From {name}",
-    "Made by {name}",
-    "Generated by {name}",
-
-    # === Misc humor ===
-    "{name} is the best", "{name} is the man",
-    "Thank {name}",
-    "Thanks {name}",
-    "{name} saves the day", "{name} to the rescue",
-]
-
-# "We" phrasing — Jerry consistently said "we" in his emails ("we built
-# all the seeds", "we can remember neither"). The phrase might use "we"
-# instead of names.
-WE_TEMPLATES = [
-    # NOTE: Jumbo rules will add most case/punctuation variants
-    "We deserve a raise", "We deserve raises",
-    "We need a raise", "We need raises",
-    "Give us a raise",
-    "We rule",
-    "We were here", "We built this", "We made this",
-    "Our gift to cryptography",
-    "NSA rules", "NSA was here",
-]
 
 
 # =============================================================================
@@ -386,11 +220,9 @@ def generate_base_phrases():
     Generate all base phrases (before counter/case/punctuation expansion).
     
     Returns a sorted list (not set) so the order is deterministic and
-    reproducible across runs. This matters for Phase 2 checkpointing —
-    we need base phrase #N to always be the same phrase on every run.
-    If you add new phrases later, they'll get new indices at the end
-    (since we sort alphabetically) and the old checkpoints stay valid
-    as long as you don't remove phrases.
+    reproducible across runs. Phrases can be freely added or removed —
+    Phase 2 checkpointing is by phrase TEXT, not index, so the existing
+    completed-phrase log entries remain valid regardless of list changes.
     """
     phrases = set()
 
@@ -624,8 +456,17 @@ def read_state():
     Returns a dict with:
         phase1_complete: bool
         phase1_done_batches: set of tuples (min_counter, max_counter)
-        phase2_done_batches: dict mapping base phrase index to set of (min, max) tuples
-        phase2_done_indices: set of ints (base phrase indices fully complete)
+        phase2_done_phrase_batches: dict mapping phrase text to set of (min, max) tuples
+        phase2_done_phrases: set of phrase texts fully complete
+
+    Handles both old (index-based) and new (phrase-text-based) log formats:
+        Old PHASE2_BATCH_DONE:  "PHASE2_BATCH_DONE:37:0-499:A gift from Solinas and Law"
+        New PHASE2_BATCH_DONE:  "PHASE2_BATCH_DONE:A gift from Solinas and Law:0-499"
+        Old PHASE2_BASE_DONE:   "PHASE2_BASE_DONE:37:A gift from Solinas and Law"
+        New PHASE2_BASE_DONE:   "PHASE2_BASE_DONE:A gift from Solinas and Law"
+
+    The old format is detected by checking whether the first colon-delimited
+    field is all digits (an index). English phrases never start with pure digits.
 
     We parse the log line by line looking for specific markers. This is
     robust to partial writes and corruption — if a line doesn't match
@@ -634,8 +475,8 @@ def read_state():
     state = {
         "phase1_complete": False,
         "phase1_done_batches": set(),
-        "phase2_done_batches": {},  # idx -> set of (min, max) tuples
-        "phase2_done_indices": set(),
+        "phase2_done_phrase_batches": {},  # phrase_text -> set of (min, max) tuples
+        "phase2_done_phrases": set(),      # phrase texts fully complete
     }
 
     if not os.path.isfile(STATE_LOG):
@@ -648,7 +489,7 @@ def read_state():
                 if "PHASE1_COMPLETE" in line:
                     state["phase1_complete"] = True
                 elif "PHASE1_BATCH_DONE:" in line:
-                    # Format: "timestamp: PHASE1_BATCH_DONE:0-500" or "PHASE1_BATCH_DONE:501-1000"
+                    # Format: "timestamp: PHASE1_BATCH_DONE:0-500"
                     try:
                         marker = line.split("PHASE1_BATCH_DONE:")[1].split()[0]
                         min_c, max_c = map(int, marker.split("-"))
@@ -656,24 +497,34 @@ def read_state():
                     except (ValueError, IndexError):
                         pass  # Corrupted line, skip it
                 elif "PHASE2_BATCH_DONE:" in line:
-                    # Format: "timestamp: PHASE2_BATCH_DONE:idx:0-500:phrase"
                     try:
                         marker = line.split("PHASE2_BATCH_DONE:")[1]
                         parts = marker.split(":")
-                        idx = int(parts[0])
-                        min_c, max_c = map(int, parts[1].split("-"))
-                        if idx not in state["phase2_done_batches"]:
-                            state["phase2_done_batches"][idx] = set()
-                        state["phase2_done_batches"][idx].add((min_c, max_c))
+                        if parts[0].isdigit():
+                            # Old format: "idx:min-max:phrase text"
+                            range_str = parts[1]
+                            phrase = ":".join(parts[2:])
+                        else:
+                            # New format: "phrase text:min-max"
+                            phrase = ":".join(parts[:-1])
+                            range_str = parts[-1]
+                        min_c, max_c = map(int, range_str.split("-"))
+                        if phrase not in state["phase2_done_phrase_batches"]:
+                            state["phase2_done_phrase_batches"][phrase] = set()
+                        state["phase2_done_phrase_batches"][phrase].add((min_c, max_c))
                     except (ValueError, IndexError):
                         pass  # Corrupted line, skip it
                 elif "PHASE2_BASE_DONE:" in line:
-                    # Format: "timestamp: PHASE2_BASE_DONE:index:phrase"
-                    # This is the old-style completion marker (all batches done)
                     try:
                         marker = line.split("PHASE2_BASE_DONE:")[1]
-                        idx = int(marker.split(":")[0])
-                        state["phase2_done_indices"].add(idx)
+                        parts = marker.split(":", 1)
+                        if len(parts) == 2 and parts[0].isdigit():
+                            # Old format: "idx:phrase text"
+                            phrase = parts[1]
+                        else:
+                            # New format: "phrase text"
+                            phrase = marker
+                        state["phase2_done_phrases"].add(phrase)
                     except (ValueError, IndexError):
                         pass  # Corrupted line, skip it
     except Exception as e:
@@ -826,43 +677,48 @@ def run_phase2():
     we process in counter batches of BATCH_SIZE to reduce temp file sizes
     and allow more frequent checkpoints.
 
+    Checkpointing is by phrase TEXT (not index), so phrases can be added
+    or removed from generate_base_phrases() without invalidating existing
+    checkpoints. The old index-based log format is still parsed correctly
+    by read_state() for backward compatibility.
+
     Skips any phrases/batches already logged as done from a previous run.
     """
     log_message("PHASE 2 START: Single character insertion with John Jumbo (batched counters)")
 
     base_phrases = generate_base_phrases()
     state = read_state()
-    done_indices = state["phase2_done_indices"]
-    done_batches = state["phase2_done_batches"]
+    done_phrases = state["phase2_done_phrases"]
+    done_phrase_batches = state["phase2_done_phrase_batches"]
 
     # Generate counter batches based on PHASE_2_BATCH_SIZE parameter
     counter_batches = generate_counter_batches(PHASE_2_BATCH_SIZE)
 
-    remaining = len(base_phrases) - len(done_indices)
+    remaining = sum(1 for p in base_phrases if p not in done_phrases)
     log_message(f"Phase 2: {len(base_phrases)} total base phrases, "
-                f"{len(done_indices)} already done, {remaining} remaining")
+                f"{len(done_phrases)} already done, {remaining} remaining")
 
-    for idx, phrase in enumerate(base_phrases):
-        # Skip phrases completed in a previous run
-        if idx in done_indices:
+    for phrase_num, phrase in enumerate(base_phrases):
+        # Skip phrases completed in a previous run (matched by text, not index)
+        if phrase in done_phrases:
             continue
 
-        log_message(f"Phase 2: Starting phrase {idx}/{len(base_phrases)-1}: "
+        log_message(f"Phase 2: Starting phrase {phrase_num+1}/{len(base_phrases)}: "
                     f"{repr(phrase)}")
         phrase_start_time = time.time()
 
-        # Get the set of batches already done for this phrase
-        completed_batches = done_batches.get(idx, set())
+        # Get the set of batches already done for this phrase (keyed by phrase text)
+        completed_batches = done_phrase_batches.get(phrase, set())
 
         # Process each counter batch for this phrase
         for min_c, max_c in counter_batches:
             # Skip batches completed in a previous run
             if (min_c, max_c) in completed_batches:
-                log_message(f"Phase 2 [{idx}]: Batch {min_c}-{max_c} already "
+                log_message(f"Phase 2 [{repr(phrase)[:40]}]: Batch {min_c}-{max_c} already "
                             f"complete (skipping)")
                 continue
 
-            log_message(f"Phase 2 [{idx}]: Starting counter batch {min_c}-{max_c}")
+            log_message(f"Phase 2 [{repr(phrase)[:40]}]: Starting counter batch {min_c}-{max_c}")
             batch_start_time = time.time()
 
             # Generate all single-char-insertion candidates for this counter batch.
@@ -871,7 +727,7 @@ def run_phase2():
             # 2. If John crashes, we can re-feed the same file
             # 3. We can inspect the file for debugging
             wordlist_path = os.path.join(TEMP_DIR,
-                                         f"phase2_phrase_{idx}_batch_{min_c}_{max_c}.txt")
+                                         f"phase2_batch_{min_c}_{max_c}.txt")
 
             count = 0
             with open(wordlist_path, 'w') as f:
@@ -879,12 +735,12 @@ def run_phase2():
                     f.write(candidate + "\n")
                     count += 1
                     if count % 10_000_000 == 0:
-                        print(f"  Phase 2 [{idx}:{min_c}-{max_c}]: {count:,} "
+                        print(f"  Phase 2 [{repr(phrase)[:40]}:{min_c}-{max_c}]: {count:,} "
                               f"candidates generated...", flush=True)
 
             gen_time = time.time() - batch_start_time
             file_mb = os.path.getsize(wordlist_path) / (1024 * 1024)
-            log_message(f"Phase 2 [{idx}:{min_c}-{max_c}]: Generated {count:,} "
+            log_message(f"Phase 2 [{repr(phrase)[:40]}:{min_c}-{max_c}]: Generated {count:,} "
                         f"candidates ({file_mb:.0f} MB) in {gen_time:.0f}s. "
                         f"Feeding to John...")
 
@@ -892,7 +748,7 @@ def run_phase2():
             found = run_john_on_wordlist(wordlist_path)
 
             batch_elapsed = time.time() - batch_start_time
-            log_message(f"Phase 2 [{idx}:{min_c}-{max_c}]: Completed in "
+            log_message(f"Phase 2 [{repr(phrase)[:40]}:{min_c}-{max_c}]: Completed in "
                         f"{batch_elapsed/3600:.1f} hours")
 
             # Clean up temp wordlist (can be huge)
@@ -901,21 +757,20 @@ def run_phase2():
             except Exception:
                 pass
 
-            # Checkpoint: log this batch as done
-            log_message(f"PHASE2_BATCH_DONE:{idx}:{min_c}-{max_c}:{phrase}")
+            # Checkpoint: phrase text as key (new format, index-free)
+            log_message(f"PHASE2_BATCH_DONE:{phrase}:{min_c}-{max_c}")
 
             if found:
-                log_message(f"Phase 2: !!! FOUND SOMETHING on phrase {idx} "
+                log_message(f"Phase 2: !!! FOUND SOMETHING on phrase {repr(phrase)} "
                             f"batch {min_c}-{max_c}! Check FOUND file !!!")
 
         # All batches done for this phrase
         phrase_elapsed = time.time() - phrase_start_time
-        log_message(f"Phase 2 [{idx}]: All batches complete for this phrase "
+        log_message(f"Phase 2 [{repr(phrase)[:40]}]: All batches complete for this phrase "
                     f"(total {phrase_elapsed/3600:.1f} hours)")
 
-        # Checkpoint: log the entire phrase as done (for backward compatibility
-        # and as a summary marker)
-        log_message(f"PHASE2_BASE_DONE:{idx}:{phrase}")
+        # Checkpoint: phrase text only (new format, index-free)
+        log_message(f"PHASE2_BASE_DONE:{phrase}")
 
     log_message("PHASE2_COMPLETE: All base phrases processed with "
                 "single-char insertion")
@@ -1077,7 +932,7 @@ def main():
     else:
         log_message(f"Phase 1: {len(state['phase1_done_batches'])} counter batches "
                     f"already done (out of {total_counter_batches})")
-    log_message(f"Phase 2: {len(state['phase2_done_indices'])} base phrases "
+    log_message(f"Phase 2: {len(state['phase2_done_phrases'])} base phrases "
                 f"already done")
 
     # Phase 1: Base phrases with John Jumbo

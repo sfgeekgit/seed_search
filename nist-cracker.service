@@ -16,8 +16,8 @@ IOSchedulingClass=idle
 IOSchedulingPriority=7
 
 # Restart on failure
-Restart=on-failure
-RestartSec=60
+Restart=always
+RestartSec=7200
 
 # Logging
 StandardOutput=journal
