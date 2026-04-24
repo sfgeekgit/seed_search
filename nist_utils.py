@@ -102,6 +102,9 @@ FOUND_FILE = os.path.join(PROJECT_DIR, "nist_seeds_FOUND.txt")
 # Temp directory for wordlist batches (cracker writes, auto-deletes)
 TEMP_DIR = os.path.join(PROJECT_DIR, "tmp")
 
+# Archive directory for copies of all emails sent (or attempted)
+EMAIL_ARCHIVE_DIR = os.path.join(PROJECT_DIR, "email_archive")
+
 # John rules — always Jumbo for maximum coverage
 JOHN_RULES = "Jumbo"
 
@@ -138,6 +141,21 @@ def send_email(subject, body):
     except Exception as e:
         print(f"WARNING: Could not read SendGrid API key: {e}", flush=True)
         return False
+
+    # Archive the email to disk regardless of send success/failure
+    try:
+        os.makedirs(EMAIL_ARCHIVE_DIR, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        archive_path = os.path.join(EMAIL_ARCHIVE_DIR, f"{timestamp}.txt")
+        with open(archive_path, 'w') as f:
+            f.write(f"Subject: {subject}\n")
+            f.write(f"To: {EMAIL_TO}\n")
+            f.write(f"Date: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(body)
+        print(f"Email archived to {archive_path}", flush=True)
+    except Exception as e:
+        print(f"WARNING: Could not archive email: {e}", flush=True)
 
     # Create the email message
     message = Mail(
