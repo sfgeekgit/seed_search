@@ -83,10 +83,10 @@ ENABLE_EMAIL = False
 # =============================================================================
 
 # Project directory — everything lives here
-PROJECT_DIR = "/home/seed_search2"
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# John the Ripper binary (compiled from source, lives in /tmp)
-JOHN_BINARY = "/tmp/john-jumbo/run/john"
+# John the Ripper binary — override with JOHN_BINARY env var if needed
+JOHN_BINARY = os.environ.get("JOHN_BINARY", "/tmp/john-jumbo/run/john")
 
 # Hash file with NIST seed targets in John format (username:hash)
 HASH_FILE = os.path.join(PROJECT_DIR, "nist-seeds-john.txt")
