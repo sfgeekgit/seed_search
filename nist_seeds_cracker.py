@@ -240,6 +240,21 @@ def generate_base_phrases():
     return sorted(phrases)
 
 
+def base_format_variants(phrase):
+    """
+    Generate phrase-level formatting variants before counters are appended.
+
+    These cover two cheap, historically plausible SHA-1 input differences that
+    John Jumbo did not generate in local testing: a single trailing ASCII space,
+    and the same phrase with literal ASCII spaces removed.
+    """
+    variants = [phrase, phrase + " "]
+    no_spaces = phrase.replace(" ", "")
+    if no_spaces not in variants:
+        variants.append(no_spaces)
+    return variants
+
+
 def expand_phrase_with_counters(phrase, min_counter=0, max_counter=MAX_COUNTER):
     """
     Take a single base phrase and yield all expanded variants with counters.
@@ -253,14 +268,15 @@ def expand_phrase_with_counters(phrase, min_counter=0, max_counter=MAX_COUNTER):
     The min_counter and max_counter params allow batching the counter range
     to reduce temp file sizes (e.g., 0-500, 501-1000, etc.).
     """
-    # Only yield the no-counter variant if min_counter is 0
-    if min_counter == 0:
-        yield phrase
+    for phrase_variant in base_format_variants(phrase):
+        # Only yield the no-counter variant if min_counter is 0
+        if min_counter == 0:
+            yield phrase_variant
 
-    # Yield counters in the specified range.
-    for n in range(min_counter, max_counter + 1):
-        for fmt in counter_formats(n):
-            yield phrase + fmt
+        # Yield counters in the specified range.
+        for n in range(min_counter, max_counter + 1):
+            for fmt in counter_formats(n):
+                yield phrase_variant + fmt
 
 
 # =============================================================================
