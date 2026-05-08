@@ -31,13 +31,13 @@ regardless of their position in the sorted list.
 # =============================================================================
 
 SINGLE_NAMES = [
-    "Jerry", "Bob", #"Laurie",
+    "Jerry", "Bob", "Laurie",
     "Jerry Solinas", "Bob Reiter", "Laurie Law",
     "Solinas", "Reiter", "Law",
     "Jerome", "Robert",
-    # "Jerome Solinas", "Robert Reiter",
-    #"J. Solinas", "B. Reiter", "L. Law",
-    #"Jerome A. Solinas",
+    "Jerome Solinas", "Robert Reiter",
+    "J. Solinas", "B. Reiter", "L. Law",
+    "Jerome A. Solinas",
 ]
 
 # Pairs of names. The phrase likely contains TWO names based on:
@@ -47,21 +47,18 @@ SINGLE_NAMES = [
 NAME_PAIRS = [
     # Most likely: Jerry + Bob (since Bob wrote the code)
     ("Jerry", "Bob"), ("Bob", "Jerry"),
-    ("Jerry Solinas", "Bob Reiter"), #("Bob Reiter", "Jerry Solinas"),
-    ("Solinas", "Reiter"), #("Reiter", "Solinas"),
+    ("Jerry Solinas", "Bob Reiter"), ("Bob Reiter", "Jerry Solinas"),
+    ("Solinas", "Reiter"), ("Reiter", "Solinas"),
     # Jerry + Laurie (the other likely second person)
-    ("Jerry", "Laurie"), #("Laurie", "Jerry"),
-    ("Jerry Solinas", "Laurie Law"), #("Laurie Law", "Jerry Solinas"),
-    ("Solinas", "Law"), #("Law", "Solinas"),
-    ("Jerry", "Law"),
-    
+    ("Jerry", "Laurie"), ("Laurie", "Jerry"),
+    ("Jerry Solinas", "Laurie Law"), ("Laurie Law", "Jerry Solinas"),
+    ("Solinas", "Law"), ("Law", "Solinas"),
     # Bob + Laurie (less likely but possible)
-    #("Bob", "Laurie"), ("Laurie", "Bob"),
-    #("Bob Reiter", "Laurie Law"),
+    ("Bob", "Laurie"), ("Laurie", "Bob"),
+    ("Bob Reiter", "Laurie Law"),
     # Formal first names
     ("Jerome", "Bob"), ("Jerome", "Robert"),
-    #("Bob", "Jerome"), ("Robert", "Jerry"),
-    ("Jerry", "Robert"),
+    ("Bob", "Jerome"), ("Robert", "Jerry"), ("Jerry", "Robert"),
     ("Jerome Solinas", "Bob Reiter"), ("Jerome Solinas", "Robert Reiter"),
 ]
 
@@ -87,8 +84,8 @@ TWO_NAME_TEMPLATES = [
     # === "Give X and Y a raise" family (Jerry's primary example) ===
     # NOTE: Jumbo rules will add most case/punctuation variants
     "Give {name1} and {name2} a raise",
-    #"Give {name1} and {name2} raises",
-    #"Give {name1} & {name2} a raise",
+    "Give {name1} and {name2} raises",
+    "Give {name1} & {name2} a raise",
 
     # === "deserve/need a raise" family ===
     "{name1} and {name2} deserve a raise",
@@ -96,55 +93,40 @@ TWO_NAME_TEMPLATES = [
     "{name1} and {name2} need a raise",
     "{name1} and {name2} need raises",
     "{name1} and {name2} should get a raise",
-    "{name1} and {name2} should get raises",
-    "{name1} and {name2} get a raise",
-    "{name1} and {name2} get raises",
-    "Give {name1} and {name2} their raise",
-    "Give {name1} and {name2} a pay raise",
-    "{name1} and {name2} deserve their raise",
     "{name1} & {name2} deserve a raise",
-    #"{name1} & {name2} need a raise",
+    "{name1} & {name2} need a raise",
 
     # === "rule" family (Jerry's other example) ===
     "{name1} and {name2} rule",
     "{name1} & {name2} rule",
-    #"{name1} and {name2} really rule",
-    #"{name1} and {name2} rock",
+    "{name1} and {name2} rock",
 
     # === Pay/money ===
     "Pay {name1} and {name2} more",
-    #"{name1} and {name2} need more money",
-    #"{name1} and {name2} need better pay",
+    "{name1} and {name2} need more money",
+    "{name1} and {name2} need better pay",
     "{name1} and {name2} are underpaid",
 
     # === Workplace humor ===
-    #"{name1} and {name2} were here",
-    #"{name1} and {name2} wuz here",
+    "{name1} and {name2} were here",
+    "{name1} and {name2} wuz here",
     "{name1} and {name2} made this",
-    #"{name1} and {name2} did this",
+    "{name1} and {name2} did this",
     "{name1} and {name2} built this",
-    "{name1} and {name2} wrote this",
-    "{name1} and {name2} wrote the code",
-    "{name1} and {name2} made the seeds",
-    "{name1} and {name2} built the seeds",
-    "{name1} and {name2} made this curve",
-    "{name1} and {name2} made these curves",
-    "{name1} and {name2} picked the seeds",
-    "{name1} and {name2} chose the seeds",
 
     # === Credit/authorship ===
-    #"{name1} and {name2}'s excellent curve",
-    #"{name1} and {name2}'s excellent adventure",
-    #"{name1} and {name2}'s gift to cryptography",
-    #"{name1} and {name2}'s contribution",
+    "{name1} and {name2}'s excellent curve",
+    "{name1} and {name2}'s excellent adventure",
+    "{name1} and {name2}'s gift to cryptography",
+    "{name1} and {name2}'s contribution",
     "A gift from {name1} and {name2}",
     "From {name1} and {name2}",
     "Made by {name1} and {name2}",
 
     # === Promotion ===
     "Promote {name1} and {name2}",
-    #"{name1} and {name2} for promotion",
-    #"{name1} and {name2} deserve a promotion",
+    "{name1} and {name2} for promotion",
+    "{name1} and {name2} deserve a promotion",
 ]
 
 SINGLE_NAME_TEMPLATES = [
@@ -159,24 +141,14 @@ SINGLE_NAME_TEMPLATES = [
     "{name} rocks",
 
     # === Workplace ===
-    "{name} was here",
-    #"{name} wuz here",
-    "{name} made this",
-    "{name} wrote this",
-    "{name} wrote the code",
-    "{name} made the seeds",
-    "{name} picked the seeds",
-    "{name} chose the seeds",
-    #"{name} did this", "{name} built this",
+    "{name} was here", "{name} wuz here",
+    "{name} made this", "{name} did this", "{name} built this",
 
     # === Pay ===
     "Pay {name} more",
     "{name} is underpaid",
-    #"{name} needs more money",
-    "{name} needs better pay",
+    "{name} needs more money", "{name} needs better pay",
     "{name} should get a raise",
-    "{name} deserves his raise",
-    "{name} needs his raise",
 
     # === Promotion (NSA uses GS pay grades) ===
     "Promote {name}",
@@ -186,17 +158,17 @@ SINGLE_NAME_TEMPLATES = [
 
     # === Credit ===
     "A gift from {name}",
-    #"{name}'s gift to cryptography", "{name}'s contribution",
-    #"{name}'s curve", "{name}'s excellent curve",
+    "{name}'s gift to cryptography", "{name}'s contribution",
+    "{name}'s curve", "{name}'s excellent curve",
     "From {name}",
     "Made by {name}",
-    #"Generated by {name}",
+    "Generated by {name}",
 
     # === Misc humor ===
     "{name} is the best", "{name} is the man",
     "Thank {name}",
-    #"Thanks {name}",
-    #"{name} saves the day", "{name} to the rescue",
+    "Thanks {name}",
+    "{name} saves the day", "{name} to the rescue",
 ]
 
 # "We" phrasing — Jerry consistently said "we" in his emails ("we built
@@ -207,39 +179,8 @@ WE_TEMPLATES = [
     "We deserve a raise", "We deserve raises",
     "We need a raise", "We need raises",
     "Give us a raise",
-    "Give us our raise",
-    "We deserve our raise",
-    "We need our raise",
     "We rule",
     "We were here", "We built this", "We made this",
-    "We wrote this", "We wrote the code",
-    "We made the seeds", "We built the seeds",
-    "We picked the seeds", "We chose the seeds",
     "Our gift to cryptography",
-    "NSA rules",
-    "NSA rocks",
-    "NSA is underpaid",
-    "NSA was here",
-    "Law rules",
-    "Law is the law",
-    "The Law rules",
-    "The Law is the law",
-    "Laurie Law is the law",
-    "Laurie lays down the law",
-    "Laurie Law lays down the law",
-    "Give Law a raise",
-    "Give the Law a raise",
-    "Law deserves a raise",
-    "The Law deserves a raise",
-    "Law needs a raise",
-    "The Law needs a raise",
-    "Jerry and Law rule",
-    "Solinas and Law rule",
-    "Jerry and Laurie lay down the law",
-    "Jerry Solinas and Laurie Law lay down the law",
-    "Solinas and Law lay down the law",
-    "Obey the Law",
-    "Respect the Law",
-    "Law and order",
-    "Laurie Law and order",
+    "NSA rules", "NSA was here",
 ]
