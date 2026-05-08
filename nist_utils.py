@@ -71,11 +71,10 @@ import os
 import sys
 from datetime import datetime
 
-# Add venv to path for SendGrid
-sys.path.insert(0, '/home/seed_search2/venv/lib/python3.11/site-packages')
-
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, To, Content
+# Set to True to actually send emails via SendGrid (requires sendgrid installed
+# and a valid API key at SENDGRID_KEY_FILE). When False, emails are still
+# archived to disk but never sent and sendgrid is never imported.
+ENABLE_EMAIL = False
 
 
 # =============================================================================
@@ -121,7 +120,7 @@ SENDGRID_KEY_FILE = os.path.expanduser("~/.sendgrid_key")
 
 def send_email(subject, body):
     """
-    Send an email via SendGrid API.
+    Archive an email to disk, and optionally send it via SendGrid.
 
     Both the cracker and watcher call this function:
     - Cracker: calls immediately when a match is found
@@ -131,7 +130,24 @@ def send_email(subject, body):
     If email fails, we print a warning but don't crash — the log files
     still have the information.
     """
-    # Read API key from secure file
+    try:
+        os.makedirs(EMAIL_ARCHIVE_DIR, exist_ok=True)
+        now = datetime.now().astimezone()
+        archive_path = os.path.join(EMAIL_ARCHIVE_DIR, f"{now.strftime('%Y-%m-%d_%H-%M-%S')}.txt")
+        with open(archive_path, 'w') as f:
+            f.write(f"Subject: {subject}\n")
+            f.write(f"To: {EMAIL_TO}\n")
+            f.write(f"Date: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(body)
+        print(f"Email archived to {archive_path}", flush=True)
+    except Exception as e:
+        print(f"WARNING: Could not archive email: {e}", flush=True)
+
+    if not ENABLE_EMAIL:
+        print(f"Email sending disabled (ENABLE_EMAIL=False): {subject}", flush=True)
+        return False
+
     try:
         with open(SENDGRID_KEY_FILE, 'r') as f:
             api_key = f.read().strip()
@@ -142,22 +158,10 @@ def send_email(subject, body):
         print(f"WARNING: Could not read SendGrid API key: {e}", flush=True)
         return False
 
-    # Archive the email to disk regardless of send success/failure
-    try:
-        os.makedirs(EMAIL_ARCHIVE_DIR, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        archive_path = os.path.join(EMAIL_ARCHIVE_DIR, f"{timestamp}.txt")
-        with open(archive_path, 'w') as f:
-            f.write(f"Subject: {subject}\n")
-            f.write(f"To: {EMAIL_TO}\n")
-            f.write(f"Date: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')}\n")
-            f.write("=" * 50 + "\n\n")
-            f.write(body)
-        print(f"Email archived to {archive_path}", flush=True)
-    except Exception as e:
-        print(f"WARNING: Could not archive email: {e}", flush=True)
+    # Import sendgrid only when actually sending
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, To, Content
 
-    # Create the email message
     message = Mail(
         from_email=Email(EMAIL_TO, "NIST Seeds Cracker"),
         to_emails=To(EMAIL_TO),
