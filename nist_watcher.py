@@ -1,4 +1,4 @@
-#!/home/seed_search2/venv/bin/python3
+#!/usr/bin/env python3
 """
 NIST Watcher - Status Reporter
 ================================
@@ -239,9 +239,8 @@ def main():
     if success:
         print("✓ Status report sent successfully")
     else:
-        print("✗ Failed to send status report")
-        return 1
-    
+        print("✗ Failed to send (archived only)")
+
     print("=" * 60)
     print("Watcher complete. Exiting.")
     return 0
