@@ -17,7 +17,7 @@ IOSchedulingPriority=7
 
 # Restart on failure
 Restart=always
-RestartSec=7200
+RestartSec=21600
 
 # Logging
 StandardOutput=journal
