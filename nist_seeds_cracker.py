@@ -133,9 +133,21 @@ MAX_COUNTER = 2500
 # and smaller temp files, but more overhead from launching John.
 PHASE_1_BATCH_SIZE = 10
 
-# Counter batch size for Phase 2. Larger batches reduce John launch overhead,
-# which matters more in Phase 2 since each batch takes hours anyway.
-PHASE_2_BATCH_SIZE = 500
+# Target candidate count per Phase 2 batch. Used to derive the counter batch
+# size *per phrase* (longer base phrases produce more candidates per counter
+# because Phase 2 inserts at every position, so the same counter span yields
+# many more candidates).
+#
+# Calibrated from production data: short phrases (~15 chars) at 500-counter
+# batches produced ~25M candidates and John finished them in ~10h. Long
+# phrases (~41 chars) at 500-counter batches produced ~60M candidates and
+# hit the 24h timeout on every batch. Targeting 25M keeps long-phrase batches
+# under ~12h while leaving short phrases at roughly the original batch size.
+PHASE_2_TARGET_CANDIDATES = 25_000_000
+
+# Floor for adaptive batch size — never go smaller than this many counters
+# per batch (avoids excessive John-launch overhead on pathologically long phrases).
+PHASE_2_MIN_BATCH_SIZE = 50
 
 # How often to log a status line in Phase 3 (seconds).
 # Every 4 hours = 14400 seconds. This is just so you can check the log
@@ -304,17 +316,19 @@ def check_john_available():
 def run_john_on_wordlist(wordlist_path):
     """
     Run John the Ripper with Jumbo rules on a wordlist file.
-    
-    Returns True if John found any new cracks, False otherwise.
-    
+
+    Returns True if John ran to completion (whether or not it found anything).
+    Returns False if John did not complete (timeout or non-zero exit). The
+    caller MUST NOT write a checkpoint marker on a False return — that batch
+    has not actually been searched.
+
+    Any new cracks are handled as a side effect via handle_found_cracks
+    (which writes FOUND_FILE, logs FOUND:, and sends email).
+
     We use --rules=Jumbo for maximum mangling coverage. This means John
     takes each word in our wordlist and applies thousands of transformations
     (l33tspeak, case toggling, appending numbers, character swaps, etc.)
     before checking against the target hashes.
-    
-    John automatically stores found passwords in its "pot" file
-    (~/.john/john.pot). We check the pot file after each run to see
-    if anything new was found.
     """
     # Snapshot the pot file before this run so we can detect new finds
     pot_before = get_john_pot_contents()
@@ -350,20 +364,20 @@ def run_john_on_wordlist(wordlist_path):
             )
             return False
 
-        # Check for new cracks
+        # Check for new cracks (side effect: handle_found_cracks logs and emails)
         pot_after = get_john_pot_contents()
         new_cracks = pot_after - pot_before
-
         if new_cracks:
             handle_found_cracks(new_cracks)
-            return True
+
+        return True
 
     except subprocess.TimeoutExpired:
         log_message("WARNING: John timed out after 24 hours on this batch")
+        return False
     except Exception as e:
         log_message(f"ERROR running John: {e}")
-
-    return False
+        return False
 
 
 def get_john_pot_contents():
@@ -611,7 +625,7 @@ def run_phase1():
                     f"({file_mb:.0f} MB)")
         log_message(f"Phase 1 [{min_c}-{max_c}]: Feeding to John with Jumbo rules...")
 
-        found = run_john_on_wordlist(wordlist_path)
+        completed = run_john_on_wordlist(wordlist_path)
 
         # Clean up the wordlist file
         try:
@@ -620,16 +634,20 @@ def run_phase1():
             pass
 
         elapsed = time.time() - start_time
-        log_message(f"Phase 1 [{min_c}-{max_c}]: Completed in {elapsed/60:.1f} minutes")
 
-        # Checkpoint: log this batch as done
-        log_message(f"PHASE1_BATCH_DONE:{min_c}-{max_c}")
+        if completed:
+            log_message(f"Phase 1 [{min_c}-{max_c}]: Completed in {elapsed/60:.1f} minutes")
+            log_message(f"PHASE1_BATCH_DONE:{min_c}-{max_c}")
+        else:
+            log_message(
+                f"Phase 1 [{min_c}-{max_c}]: Batch did NOT complete after "
+                f"{elapsed/60:.1f} minutes — skipping checkpoint, will retry on next run"
+            )
+            # Don't keep churning if Phase 1 batches start failing —
+            # bail out so the operator notices and we don't falsely mark Phase 1 complete.
+            return
 
-        if found:
-            log_message(f"Phase 1: !!! FOUND SOMETHING in batch {min_c}-{max_c}! "
-                        f"Check FOUND file !!!")
-
-    # Mark Phase 1 as complete — all 5 batches done
+    # Mark Phase 1 as complete — all batches done
     log_message("PHASE1_COMPLETE")
     log_message("Phase 1: All counter batches complete. Moving to Phase 2.")
 
@@ -663,6 +681,43 @@ INSERTABLE_CHARS = (
     ' ' +                       # space
     '\t'                        # tab (less likely but cheap to try)
 )
+
+
+def compute_phase2_counter_batch_size(
+    phrase,
+    target_candidates=PHASE_2_TARGET_CANDIDATES,
+    min_batch_size=PHASE_2_MIN_BATCH_SIZE,
+):
+    """
+    Compute a per-phrase counter batch size so that batches stay near
+    target_candidates regardless of phrase length.
+
+    Phase 2's candidate count per counter scales with phrase length because
+    we insert one character at every position. A 15-char phrase produces
+    far fewer candidates per counter than a 41-char phrase, so a flat
+    counter batch size makes short phrases fast and long phrases overflow
+    the 24h John timeout.
+
+    We use n=250 as a representative counter (mid-range, 9 counter_formats)
+    to estimate candidates_per_counter without iterating the full range.
+    The chosen batch_size is floored at min_batch_size to keep John-launch
+    overhead in check on extremely long phrases.
+
+    NOTE: the boundaries this produces are deterministic for a given phrase
+    (and given target_candidates / min_batch_size). Changing the target after
+    checkpoints exist would shift batch boundaries and orphan old checkpoints
+    for partially-done phrases, so treat the target as a stable tuning knob.
+    """
+    variants = base_format_variants(phrase)
+    sample_counter_formats = counter_formats(250)
+    candidates_per_counter = sum(
+        (len(variant) + len(fmt) + 1) * len(INSERTABLE_CHARS)
+        for variant in variants
+        for fmt in sample_counter_formats
+    )
+    if candidates_per_counter <= 0:
+        return min_batch_size
+    return max(min_batch_size, target_candidates // candidates_per_counter)
 
 
 def generate_phase2_candidates_for_phrase(phrase, min_counter=0, max_counter=MAX_COUNTER):
@@ -707,9 +762,6 @@ def run_phase2():
     done_phrases = state["phase2_done_phrases"]
     done_phrase_batches = state["phase2_done_phrase_batches"]
 
-    # Generate counter batches based on PHASE_2_BATCH_SIZE parameter
-    counter_batches = generate_counter_batches(PHASE_2_BATCH_SIZE)
-
     remaining = sum(1 for p in base_phrases if p not in done_phrases)
     log_message(f"Phase 2: {len(base_phrases)} total base phrases, "
                 f"{len(done_phrases)} already done, {remaining} remaining")
@@ -719,12 +771,24 @@ def run_phase2():
         if phrase in done_phrases:
             continue
 
+        # Counter batch size is computed per phrase so that long base phrases
+        # (which yield many more single-char-insertion candidates per counter)
+        # don't overflow John's 24h timeout.
+        phase2_batch_size = compute_phase2_counter_batch_size(phrase)
+        counter_batches = generate_counter_batches(phase2_batch_size)
+
         log_message(f"Phase 2: Starting phrase {phrase_num+1}/{len(base_phrases)}: "
-                    f"{repr(phrase)}")
+                    f"{repr(phrase)} (counter batch size: {phase2_batch_size}, "
+                    f"{len(counter_batches)} batches)")
         phrase_start_time = time.time()
 
         # Get the set of batches already done for this phrase (keyed by phrase text)
         completed_batches = done_phrase_batches.get(phrase, set())
+
+        # Track whether every batch for this phrase actually completed.
+        # We only write PHASE2_BASE_DONE if it did — otherwise the next run
+        # will re-attempt the missing batches.
+        all_batches_completed = True
 
         # Process each counter batch for this phrase
         for min_c, max_c in counter_batches:
@@ -761,32 +825,42 @@ def run_phase2():
                         f"Feeding to John...")
 
             # Feed to John — this is the slow part (hours per batch)
-            found = run_john_on_wordlist(wordlist_path)
+            completed = run_john_on_wordlist(wordlist_path)
 
             batch_elapsed = time.time() - batch_start_time
-            log_message(f"Phase 2 [{repr(phrase)[:40]}:{min_c}-{max_c}]: Completed in "
-                        f"{batch_elapsed/3600:.1f} hours")
 
-            # Clean up temp wordlist (can be huge)
+            # Clean up temp wordlist (can be huge) regardless of outcome
             try:
                 os.remove(wordlist_path)
             except Exception:
                 pass
 
-            # Checkpoint: phrase text as key (new format, index-free)
-            log_message(f"PHASE2_BATCH_DONE:{phrase}:{min_c}-{max_c}")
+            if completed:
+                log_message(f"Phase 2 [{repr(phrase)[:40]}:{min_c}-{max_c}]: Completed in "
+                            f"{batch_elapsed/3600:.1f} hours")
+                # Checkpoint: phrase text as key (new format, index-free)
+                log_message(f"PHASE2_BATCH_DONE:{phrase}:{min_c}-{max_c}")
+            else:
+                log_message(
+                    f"Phase 2 [{repr(phrase)[:40]}:{min_c}-{max_c}]: Batch did NOT complete "
+                    f"after {batch_elapsed/3600:.1f} hours — skipping checkpoint, will retry "
+                    f"on next run"
+                )
+                all_batches_completed = False
 
-            if found:
-                log_message(f"Phase 2: !!! FOUND SOMETHING on phrase {repr(phrase)} "
-                            f"batch {min_c}-{max_c}! Check FOUND file !!!")
-
-        # All batches done for this phrase
+        # All batches processed for this phrase
         phrase_elapsed = time.time() - phrase_start_time
-        log_message(f"Phase 2 [{repr(phrase)[:40]}]: All batches complete for this phrase "
-                    f"(total {phrase_elapsed/3600:.1f} hours)")
-
-        # Checkpoint: phrase text only (new format, index-free)
-        log_message(f"PHASE2_BASE_DONE:{phrase}")
+        if all_batches_completed:
+            log_message(f"Phase 2 [{repr(phrase)[:40]}]: All batches complete for this phrase "
+                        f"(total {phrase_elapsed/3600:.1f} hours)")
+            # Checkpoint: phrase text only (new format, index-free)
+            log_message(f"PHASE2_BASE_DONE:{phrase}")
+        else:
+            log_message(
+                f"Phase 2 [{repr(phrase)[:40]}]: One or more batches did not complete "
+                f"(total {phrase_elapsed/3600:.1f} hours) — NOT writing PHASE2_BASE_DONE, "
+                f"missing batches will be retried on next run"
+            )
 
     log_message("PHASE2_COMPLETE: All base phrases processed with "
                 "single-char insertion")
